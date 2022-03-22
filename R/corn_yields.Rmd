@@ -1,0 +1,140 @@
+---
+title: "Corn Yield Analysis"
+author: "Rodney Murray"
+date: "3/19/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, warning=FALSE, message=F}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(readr)
+library(stringr)
+```
+
+## Data Loading
+Here we will load the data and filter such that we are looking for entries related to irrigated (or non-irrigated) grain corn.
+```{r}
+corn <- read.csv('../data/more_corn.csv')
+corn <- corn %>%
+  filter(grepl('IRRIGATED', Data.Item)) %>% 
+  filter(grepl('GRAIN', Data.Item))
+corn
+```
+
+Next we do some reprocessing such as separating out the description to get the data we need on if it was irrigated or not, and what the measure was. Then we pivot the data so it is easier to do some calculations with the area and produciton volumes.
+```{r}
+process_data <- function(corn) {
+  corn <- corn %>% 
+    separate(Data.Item, sep=',', into=c('Crop', 'Type', 'Measure')) %>% 
+    separate(Measure, sep=' - ', into=c('Irrigated', 'Variable')) %>% 
+    arrange(Year, State) %>%
+    mutate(
+      State = as.factor(State),
+      County = as.factor(County),
+      Type = as.factor(Type),
+      Irrigated = str_replace_all(Irrigated, ' ', ''),
+      Irrigated = as.factor(Irrigated),
+      Variable = factor(str_replace_all(Variable, ' ', '.')),
+      Value = as.numeric(str_replace_all(Value, ',', ''))
+      ) %>% 
+    pivot_wider(
+      id_cols = c(Year, State, Ag.District, Ag.District.Code, County, Commodity, Type, Irrigated),
+      names_from = Variable,
+      values_from = Value
+    ) %>% 
+    mutate(YIELD = PRODUCTION / ACRES.HARVESTED)
+  return(corn)
+}
+corn <- process_data(corn)
+corn
+```
+
+Check for NA's and the size of the resulting dataset
+```{r}
+colSums(is.na(corn))
+nrow(corn)
+```
+
+Next we will plot the production and yield. 
+```{r}
+fig <- ggplot(corn, aes(x=Year,y=PRODUCTION, color=State)) +
+  facet_grid(rows=vars(Irrigated), cols=vars(Type)) +
+  geom_line()
+fig
+
+fig <- ggplot(corn, aes(x=Year,y=YIELD, color=State)) +
+  facet_grid(rows=vars(Irrigated), cols=vars(Type)) +
+  geom_line()
+fig
+```
+From the two plots above it is amazing to see how the grain production and yields have improved over time! I'm interested in grouping some states which I think more alike (places like Wyoming, Montana and Idaho vs. Nebraska and Kansas).
+
+
+## Data Aggregation
+As will 
+```{r}
+# Define the groups
+areas = list(
+  'COLORADO'='MTN_WEST', 
+  'WYOMING'='MTN_WEST', 
+  'IDAHO'='MTN_WEST', 
+  'MONTANA'='MTN_WEST', 
+  'NEW MEXICO'='SOUTH', 
+  'DELAWARE'='EAST', 
+  'TEXAS'='SOUTH', 
+  'NEBRASKA'='MID_WEST', 
+  'OKLAHOMA'='SOUTH', 
+  'SOUTH DAKOTA'='MID_WEST', 
+  'NORTH DAKOTA'='MID_WEST', 
+  'KANSAS'='MID_WEST'
+  )
+corn <- mutate(corn, area=recode(corn$State, !!!areas))
+
+# Aggregate the production, area, and yiels by the groups
+area_corn <- corn %>% 
+  group_by(Year, area, Commodity, Type, Irrigated) %>% 
+  summarize(
+    PRODUCTION=sum(PRODUCTION),
+    ACRES.HARVESTED=sum(ACRES.HARVESTED)
+    ) %>% 
+  ungroup() %>% 
+  mutate(YIELD = PRODUCTION / ACRES.HARVESTED)
+
+# Make a similar plot as above with the groups
+fig <- ggplot(area_corn, aes(x=Year,y=YIELD, color=area)) +
+  facet_grid(rows=vars(Irrigated), cols=vars(Type)) +
+  geom_line()
+fig
+```
+
+
+
+```{r}
+area_lm <- lm(YIELD ~ (area + Irrigated + Year)^2, data=area_corn)
+summary(area_lm)
+plot(area_lm)
+```
+
+```{r}
+areas <- c('MTN_WEST', 'MID_WEST')
+irrigated <- c('IRRIGATED', 'NON-IRRIGATED')
+for (area in areas) {
+  for (irrigate in irrigated) {
+    is_area <- area_corn$area == area
+    is_irrigate <- area_corn$Irrigated == irrigate
+    print(irrigate)
+    print(sum(is_area))
+    print(sum(is_irrigate))
+    residuals <- area_lm$residuals[is_area & is_irrigate]
+    if (length(residuals) > 1) {acf(residuals)}
+  }
+}
+```
+
+

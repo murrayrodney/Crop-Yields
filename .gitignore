@@ -1,0 +1,5 @@
+*.Rproj
+data/
+.vscode/
+.Rproj.user/
+.DS_Store
