@@ -33,7 +33,7 @@ corn <- read.csv('../data/USDA/corn.csv')
 corn <- corn %>%
   filter(grepl('IRRIGATED', Data.Item)) %>% 
   filter(grepl('GRAIN', Data.Item))
-corn
+head(corn)
 ```
 
 Next we do some reprocessing such as separating out the description to get the data we need on if it was irrigated or not, and what the measure was. Then we pivot the data so it is easier to do some calculations with the area and production volumes (bushels).
@@ -136,7 +136,7 @@ $Yield = \beta_0 + \beta_1 Area + \beta_1 Irrigated + \beta_1 Year + \epsilon$
 
 Where the expectation of $\epsilon$ is 0 ($E[\epsilon]=0$) and the variance of $\epsilon$ is $\sigma^2$ ($Var(\epsilon)=\sigma^2)$.
 
-Something to notice hear is that we have not stated anything about the distribution of any of the parameters in the model. Two key assumptions that we currently have and will have to verify is that our samples are independent ($corr(\epsilon_i, \epsilon_j)=0$ where $i\not=j$) and the variance is constant.
+Something to notice is that we have not stated anything about the distribution of any of the parameters in the model. Two key assumptions that we currently have and will have to verify is that our samples are independent ($corr(\epsilon_i, \epsilon_j)=0$ where $i\not=j$) and the variance is constant.
 
 With that said you will see summaries of the model which will include plenty of t-tests and F-tests on the model and coefficients as well as confidence intervals. For these to be valid we need to assume (and verify) that our residuals are normally distributed such that $\epsilon \sim N(0, \sigma^2)$. 
 
